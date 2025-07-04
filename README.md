@@ -67,8 +67,8 @@ Add this server to your MCP-compatible AI assistant (like Claude Desktop):
 {
   "mcpServers": {
     "katana-mcp": {
-      "command": "node",
-      "args": ["/path/to/katana-mcp-server/dist/index.js"],
+      "command": "npx",
+        "args": ["katana-mcp"],
       "env": {
         "WALLET_PRIVATE_KEY": "your_private_key_here"
       }

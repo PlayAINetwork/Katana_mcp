@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -572,7 +573,7 @@ const katanaChain = defineChain({
   blockExplorers: {
     default: {
       name: 'Katana Explorer',
-      url: 'https://explorer.katana.network'
+      url: 'https://explorer.katanarpc.com'
     },
   },
   testnet: false,
@@ -912,7 +913,7 @@ server.tool(
             network: "Katana (Chain ID: 747474)",
             totalTokens: formattedBalances.length,
             tokenBalances: formattedBalances,
-            explorerUrl: `https://explorer.katana.network/address/${targetAddress}`,
+            explorerUrl: `https://explorer.katanarpc.com/address/${targetAddress}`,
             timestamp: new Date().toISOString()
           }, null, 2)
         }]

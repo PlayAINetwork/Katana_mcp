@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -464,7 +465,7 @@ const katanaChain = (0, viem_1.defineChain)({
     blockExplorers: {
         default: {
             name: 'Katana Explorer',
-            url: 'https://explorer.katana.network'
+            url: 'https://explorer.katanarpc.com'
         },
     },
     testnet: false,
@@ -761,7 +762,7 @@ server.tool("getTokenBalances", "Get token balances for the wallet address on Ka
                         network: "Katana (Chain ID: 747474)",
                         totalTokens: formattedBalances.length,
                         tokenBalances: formattedBalances,
-                        explorerUrl: `https://explorer.katana.network/address/${targetAddress}`,
+                        explorerUrl: `https://explorer.katanarpc.com/address/${targetAddress}`,
                         timestamp: new Date().toISOString()
                     }, null, 2)
                 }]

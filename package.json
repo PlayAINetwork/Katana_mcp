@@ -1,0 +1,64 @@
+{
+  "name": "katana-mcp-server",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "bin": {
+    "katana-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node index.ts",
+    "mcp": "node dist/index.js",
+    "prepare": "pnpm run build",
+    "prepublishOnly": "pnpm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "defi",
+    "swap",
+    "bridge",
+    "ethereum",
+    "katana",
+    "typescript"
+  ],
+  "author": {
+    "name": "Play AI",
+    "url": "https://github.com/PlayAINetwork"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PlayAINetwork/Katana_mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PlayAINetwork/Katana_mcp/issues"
+  },
+  "homepage": "https://github.com/PlayAINetwork/Katana_mcp#readme",
+
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.6.2",
+    "dotenv": "^17.0.1",
+    "ethers": "^6.8.1",
+    "sushi": "^5.1.20",
+    "viem": "^2.31.6",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

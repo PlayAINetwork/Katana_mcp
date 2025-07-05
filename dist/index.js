@@ -692,67 +692,161 @@ server.tool("bridgeAssets", "Bridge tokens from supported chains to Katana netwo
     }
 });
 // Tool: Get token balances on Katana
-server.tool("getTokenBalances", "Get token balances for the wallet address on Katana network", {
-    walletAddress: zod_1.z.string().optional().describe("Optional wallet address")
-}, async ({ walletAddress }) => {
+server.tool("getTokenBalances", "Get token balances for your wallet on Katana network (uses address from private key in environment)", {}, async () => {
     try {
-        let targetAddress;
-        if (walletAddress) {
-            targetAddress = walletAddress;
+        if (!PRIVATE_KEY) {
+            return {
+                content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            status: "error",
+                            message: "WALLET_PRIVATE_KEY not found in environment variables"
+                        }, null, 2)
+                    }]
+            };
         }
-        else {
-            if (!PRIVATE_KEY) {
-                return {
-                    content: [{
-                            type: "text",
-                            text: JSON.stringify({
-                                status: "error",
-                                message: "WALLET_PRIVATE_KEY not found in environment variables"
-                            }, null, 2)
-                        }]
-                };
-            }
-            targetAddress = getWalletAddress(PRIVATE_KEY);
-        }
+        const targetAddress = getWalletAddress(PRIVATE_KEY);
         if (!ethers_1.ethers.isAddress(targetAddress)) {
             return {
                 content: [{
                         type: "text",
                         text: JSON.stringify({
                             status: "error",
-                            message: "Invalid wallet address format"
+                            message: "Invalid wallet address format derived from private key"
                         }, null, 2)
                     }]
             };
         }
-        const response = await axios_1.default.get(`https://explorer-katana.t.conduit.xyz/api/v2/addresses/${targetAddress}/token-balances`, {
-            headers: {
-                'accept': 'application/json'
+        let tokenBalances = [];
+        let dataSource = "staging";
+        let apiError = null;
+        try {
+            console.log("Attempting staging API...");
+            const stagingResponse = await axios_1.default.get(`https://api-staging.katana.network/v1/tokens/balances/${targetAddress}`, {
+                headers: {
+                    'authority': 'api-staging.katana.network',
+                    'method': 'GET',
+                    'path': `/v1/tokens/balances/${targetAddress}`,
+                    'scheme': 'https',
+                    'Accept': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate, br, zstd',
+                    'Accept-Language': 'en-US,en=0.9,hq=0.8',
+                    'Content-Type': 'application/json',
+                    'Origin': 'https://app.katana.network',
+                    'Priority': 'u=1, i',
+                    'Referer': 'https://app.katana.network/',
+                    'Sec-Ch-Ua': '"Google Chrome";v="137", "Chromium";v="137", "Not(A)Brand";v="24"',
+                    'Sec-Ch-Ua-Mobile': '?1',
+                    'Sec-Ch-Ua-Platform': '"Android"',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'same-site',
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36'
+                }
+            });
+            const responseData = stagingResponse.data;
+            console.log("Staging API response structure:", typeof responseData, responseData);
+            if (responseData && responseData.balances && Array.isArray(responseData.balances)) {
+                tokenBalances = responseData.balances;
+                console.log(`Staging API success: Found ${tokenBalances.length} tokens`);
             }
-        });
-        const tokenBalances = response.data;
-        const formattedBalances = tokenBalances.map((token) => {
-            const decimals = parseInt(token.token?.decimals || '18');
-            const rawValue = token.value || '0';
-            let humanReadableValue = '0';
+            else if (Array.isArray(responseData)) {
+                tokenBalances = responseData;
+                console.log(`Staging API success: Direct array with ${tokenBalances.length} tokens`);
+            }
+            else {
+                throw new Error(`Invalid staging API response format: ${typeof responseData}`);
+            }
+        }
+        catch (stagingError) {
+            dataSource = "explorer";
             try {
-                if (rawValue !== '0') {
-                    humanReadableValue = ethers_1.ethers.formatUnits(rawValue, decimals);
+                console.log("Attempting explorer API fallback...");
+                const explorerResponse = await axios_1.default.get(`https://explorer-katana.t.conduit.xyz/api/v2/addresses/${targetAddress}/token-balances`, {
+                    headers: {
+                        'accept': 'application/json'
+                    }
+                });
+                const explorerData = explorerResponse.data;
+                console.log("Explorer API response structure:", typeof explorerData, explorerData);
+                if (Array.isArray(explorerData)) {
+                    tokenBalances = explorerData;
+                    console.log(`Explorer API success: Found ${tokenBalances.length} tokens`);
+                }
+                else {
+                    throw new Error(`Invalid explorer API response format: ${typeof explorerData}`);
                 }
             }
-            catch (error) {
-                humanReadableValue = 'Error parsing value';
+            catch (explorerError) {
+                console.log("Explorer API also failed:");
+                throw new Error(`Both APIs failed.`);
             }
-            return {
-                tokenAddress: token.token?.address || 'N/A',
-                tokenName: token.token?.name || 'Unknown',
-                tokenSymbol: token.token?.symbol || 'Unknown',
-                decimals: decimals,
-                rawBalance: rawValue,
-                humanReadableBalance: humanReadableValue,
-                tokenType: token.token?.type || 'Unknown'
-            };
-        });
+        }
+        let formattedBalances = [];
+        let totalValueUSD = 0;
+        if (dataSource === "staging") {
+            formattedBalances = tokenBalances.map((token) => {
+                const decimals = parseInt(token.decimals || '18');
+                const rawBalance = token.balance || '0';
+                let humanReadableBalance = '0';
+                try {
+                    if (rawBalance !== '0' && rawBalance !== 0) {
+                        humanReadableBalance = ethers_1.ethers.formatUnits(rawBalance.toString(), decimals);
+                    }
+                }
+                catch (error) {
+                    console.error(`Error parsing balance for ${token.symbol}:`, error);
+                    humanReadableBalance = 'Error parsing value';
+                }
+                const valueUSD = parseFloat(token.value_usd || '0');
+                totalValueUSD += valueUSD;
+                return {
+                    tokenAddress: token.token_address || 'N/A',
+                    tokenName: token.name || 'Unknown',
+                    tokenSymbol: token.symbol || 'Unknown',
+                    decimals: decimals,
+                    balance: rawBalance.toString(),
+                    rawBalance: rawBalance.toString(),
+                    humanReadableBalance: humanReadableBalance,
+                    tokenType: token.type || 'ERC20',
+                    priceUSD: parseFloat(token.price || '0'),
+                    valueUSD: valueUSD,
+                    logoUrl: token.logo_url || null,
+                    chainId: token.chain_id || 747474
+                };
+            });
+        }
+        else {
+            formattedBalances = tokenBalances.map((tokenData) => {
+                const token = tokenData.token || {};
+                const decimals = parseInt(token.decimals || '18');
+                const rawBalance = tokenData.value || '0';
+                let humanReadableBalance = '0';
+                try {
+                    if (rawBalance !== '0' && rawBalance !== 0) {
+                        humanReadableBalance = ethers_1.ethers.formatUnits(rawBalance.toString(), decimals);
+                    }
+                }
+                catch (error) {
+                    console.error(`Error parsing balance for ${token.symbol}:`, error);
+                    humanReadableBalance = 'Error parsing value';
+                }
+                return {
+                    tokenAddress: token.address || 'N/A',
+                    tokenName: token.name || 'Unknown',
+                    tokenSymbol: token.symbol || 'Unknown',
+                    decimals: decimals,
+                    balance: rawBalance.toString(),
+                    rawBalance: rawBalance.toString(),
+                    humanReadableBalance: humanReadableBalance,
+                    tokenType: token.type || 'Unknown',
+                    priceUSD: 0,
+                    valueUSD: 0,
+                    logoUrl: null,
+                    chainId: 747474
+                };
+            });
+        }
         return {
             content: [{
                     type: "text",
@@ -760,22 +854,23 @@ server.tool("getTokenBalances", "Get token balances for the wallet address on Ka
                         status: "success",
                         walletAddress: targetAddress,
                         network: "Katana (Chain ID: 747474)",
+                        dataSource: dataSource,
                         totalTokens: formattedBalances.length,
+                        totalValueUSD: dataSource === "staging" ? totalValueUSD : null,
                         tokenBalances: formattedBalances,
-                        explorerUrl: `https://explorer.katanarpc.com/address/${targetAddress}`,
+                        explorerUrl: `https://explorer.katana.network/address/${targetAddress}`,
                         timestamp: new Date().toISOString()
                     }, null, 2)
                 }]
         };
     }
     catch (error) {
+        console.error("getTokenBalances error:", error);
         return {
             content: [{
                     type: "text",
                     text: JSON.stringify({
-                        status: "error",
-                        message: error.response?.data?.message || error.message,
-                        code: error.code
+                        status: "error"
                     }, null, 2)
                 }]
         };
